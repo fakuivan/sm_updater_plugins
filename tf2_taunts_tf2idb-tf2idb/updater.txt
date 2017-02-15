@@ -4,9 +4,9 @@
 	{
 		"Version"
 		{
-			"Latest" "1.4.27-tf2idb"
+			"Latest" "1.4.5.31-tf2idb"
 		}
-		"Notes" "Version 1.4.27-tf2idb is out!"
+		"Notes" "Version 1.4.5.31-tf2idb is out!"
 		"Notes" "Go to https://github.com/fakuivan/TF2-Taunts-TF2IDB to see the changes"
 	}
 	"Files"
@@ -16,6 +16,7 @@
 		"Source" "Path_SM/scripting/include/tf2_taunts_tf2idb/taunt_cache_system.inc"
 		"Source" "Path_SM/scripting/include/tf2_taunts_tf2idb/taunt_enforcer.inc"
 		"Source" "Path_SM/scripting/include/tf2_taunts_tf2idb/tf2_extra_stocks.inc"
+		"Source" "Path_SM/scripting/include/tf2_taunts_tf2idb/tf2_taunts_tf2idb.inc"
 		"Source" "Path_SM/scripting/include/tf2_taunts_tf2idb/autoversioning.inc"
 		"Source" "Path_SM/scripting/include/tf2_taunts_tf2idb/updater_helpers.inc"
 		"Plugin" "Path_SM/translations/tf2.taunts.tf2idb.txt"

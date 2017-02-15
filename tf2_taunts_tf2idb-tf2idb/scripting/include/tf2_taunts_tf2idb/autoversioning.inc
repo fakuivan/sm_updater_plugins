@@ -2,5 +2,5 @@
  #endinput
 #endif
 #define _autoversioning_included
-#define AUTOVERSIONING_TAG "1.4"
-#define AUTOVERSIONING_COMMIT "27" 
+#define AUTOVERSIONING_TAG "1.4.5"
+#define AUTOVERSIONING_COMMIT "31" 

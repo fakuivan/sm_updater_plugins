@@ -22,6 +22,8 @@
 #include "tf2_taunts_tf2idb/autoversioning.inc"
 #include "tf2_taunts_tf2idb/updater_helpers.inc"
 
+#include "tf2_taunts_tf2idb/tf2_taunts_tf2idb.inc"
+
 #if defined _autoversioning_included
  #define PLUGIN_VERSION	AUTOVERSIONING_TAG ... "." ... AUTOVERSIONING_COMMIT ... "_" ... _USING_ITEMS_HELPER
 #else
@@ -42,18 +44,7 @@ public Plugin myinfo =
 CTauntCacheSystem gh_cache;
 CTauntEnforcer gh_enforcer;
 
-enum TauntExecution {
-	TauntExecution_Success = 0,
-	TauntExecution_InvalidClient,
-	TauntExecution_ClientNotInGame,
-	TauntExecution_ClientIsUnassigned,
-	TauntExecution_ClientIsSpectator,
-	TauntExecution_InvalidClass,
-	TauntExecution_TargetIsDead,
-	TauntExecution_WrongClass,
-	TauntExecution_IvalidIDX,
-	TauntExecution_TauntFailed,
-}
+InitializationStatus gi_initialization = InitializationStatus_Success;
 
 public void OnPluginStart()
 {
@@ -62,7 +53,11 @@ public void OnPluginStart()
 	gh_cache = CTauntCacheSystem.FromTF2IDB();
 	if (i_error != CTauntCacheSystem_FromTF2IDB_Error_None)
 	{
-		SetFailState("Failed to initialize taunt cache, error code %d", i_error);
+		gi_initialization = view_as<InitializationStatus>(i_error) + InitializationStatus_FromTF2IDB_Error;
+	}
+	if (gi_initialization >= InitializationStatus_FromTF2IDB_Error)
+	{
+		LogError("Failed to initialize taunt cache, error code %d", gi_initialization - InitializationStatus_FromTF2IDB_Error);
 	}
 #endif //}
 
@@ -72,28 +67,54 @@ public void OnPluginStart()
 		gh_cache = CTauntCacheSystem.FromTF2II();
 	}
 #endif //}
-	
 	Handle h_conf = LoadGameConfigFile("tf2.tauntem");
 	if (h_conf == INVALID_HANDLE)
 	{
-		SetFailState("Unable to load gamedata/tf2.tauntem.txt.");
+		gi_initialization = InitializationStatus_InvalidGamedataFile;
 	}
-	gh_enforcer = new CTauntEnforcer(h_conf);
+	else
+	{
+		if ((gh_enforcer = new CTauntEnforcer(h_conf)) == INVALID_HANDLE)
+		{
+			gi_initialization = InitializationStatus_InvalidGamedataOutdated;
+		}
+	}
 	
-	CreateConVar("sm_tf2_taunts_tf2idb_version", PLUGIN_VERSION, "Version of TF2 Taunts TF2IDB", FCVAR_SPONLY|FCVAR_REPLICATED|FCVAR_NOTIFY);
-	
-	LoadTranslations("common.phrases");
-	LoadTranslations("tf2.taunts.tf2idb");
+	if (gi_initialization == InitializationStatus_InvalidGamedataFile)
+	{
+		LogError("Unable to load gamedata/tf2.tauntem.txt.");
+	}
+	else if (gi_initialization == InitializationStatus_InvalidGamedataOutdated)
+	{
+		LogError("Unable to initialize CTauntEnforcer, gamedata files outdated.");
+	}
 	
 	if (LibraryExists("updater"))
 	{
+		if (gi_initialization != InitializationStatus_Success)
+		{
+			LogError("Halting user interface initialization. Plugin loaded, waiting for updates.");
+		}
 		Updater_AddPlugin(UPDATE_URL);
 	}
+	else if (gi_initialization != InitializationStatus_Success)
+	{
+		LogError("Halting user interface initialization. Plugin loaded but updater not found.");
+		LogError("Try using the latest version from here https://github.com/fakuivan/TF2-Taunts-TF2IDB .");
+	}
 	
-	RegConsoleCmd("sm_taunts_list", Command_ListTaunts, "Lists the available taunts for a client on a specific class");
-	RegConsoleCmd("sm_taunt_list", Command_ListTaunts, "Lists the available taunts for a client on a specific class");
-	RegConsoleCmd("sm_taunts", Command_ForceToTaunt, "Shows the taunts menu");
-	RegConsoleCmd("sm_taunt", Command_ForceToTaunt, "Shows the taunts menu");
+	CreateConVar("sm_tf2_taunts_tf2idb_version", PLUGIN_VERSION, "Version of TF2 Taunts TF2IDB", FCVAR_SPONLY|FCVAR_REPLICATED|FCVAR_NOTIFY);
+	
+	if (gi_initialization == InitializationStatus_Success)
+	{
+		LoadTranslations("common.phrases");
+		LoadTranslations("tf2.taunts.tf2idb");
+		
+		RegConsoleCmd("sm_taunts_list", Command_ListTaunts, "Shows a list of taunts ordered by class");
+		RegConsoleCmd("sm_taunt_list", Command_ListTaunts, "Shows a list of taunts ordered by class");
+		RegConsoleCmd("sm_taunts", Command_ForceToTaunt, "Shows the taunts menu");
+		RegConsoleCmd("sm_taunt", Command_ForceToTaunt, "Shows the taunts menu");
+	}
 }
 
 public void OnLibraryAdded(const char[] s_name)
@@ -156,7 +177,7 @@ public Action Command_ForceToTaunt(int i_client, int i_args)
 	{
 		int i_taunt_idx = GetCmdArgInt(1);
 		TauntExecution i_result;
-		if ((i_result = CheckAndTaunt(i_client, i_taunt_idx)) != TauntExecution_Success)
+		if ((i_result = CheckAndTaunt(i_client, i_taunt_idx, gh_enforcer, gh_cache)) != TauntExecution_Success)
 		{
 			ReplyToTauntTarget(i_client, i_result);
 			return Plugin_Handled;
@@ -216,114 +237,9 @@ public int MenuHandler_TauntsMenu(Menu h_menu, MenuAction i_action, int i_param1
 		
 		GetMenuItem(h_menu, i_param2, s_hex_idx, sizeof(s_hex_idx));
 		int i_taunt_idx = StringToInt(s_hex_idx, 16);
-		TauntExecution i_result = CheckAndTaunt(i_param1, i_taunt_idx);
+		TauntExecution i_result = CheckAndTaunt(i_param1, i_taunt_idx, gh_enforcer, gh_cache);
 		ReplyToTauntTarget(i_param1, i_result);
 	}
-}
-
-void ReplyToTauntTarget(int i_target, TauntExecution i_result)
-{
-	switch (i_result)
-	{
-		case TauntExecution_InvalidClient:
-		{
-			ReplyToCommand(i_target, "[SM] %t", "tf2_taunts_tf2idb__failed_to_target__InvalidClient");
-		}
-		case TauntExecution_ClientIsSpectator:
-		{
-			ReplyToCommand(i_target, "[SM] %t", "tf2_taunts_tf2idb__failed_to_target__ClientIsSpectator");
-		}
-		case TauntExecution_ClientIsUnassigned:
-		{
-			ReplyToCommand(i_target, "[SM] %t", "tf2_taunts_tf2idb__failed_to_target__ClientIsUnassigned");
-		}
-		case TauntExecution_InvalidClass:
-		{
-			ReplyToCommand(i_target, "[SM] %t", "tf2_taunts_tf2idb__failed_to_target__InvalidClass");
-		}
-		case TauntExecution_TargetIsDead:
-		{
-			ReplyToCommand(i_target, "[SM] %t", "tf2_taunts_tf2idb__failed_to_target__TargetIsDead");
-		}
-		case TauntExecution_WrongClass:
-		{
-			ReplyToCommand(i_target, "[SM] %t", "tf2_taunts_tf2idb__failed_to_target__WrongClass");
-		}
-		case TauntExecution_IvalidIDX:
-		{
-			ReplyToCommand(i_target, "[SM] %t", "tf2_taunts_tf2idb__failed_to_target__IvalidIDX");
-		}
-		case TauntExecution_TauntFailed:
-		{
-			ReplyToCommand(i_target, "[SM] %t", "tf2_taunts_tf2idb__failed_to_target__TauntFailed");
-		}
-	}
-}
-
-TauntExecution CheckOnly(int i_target, TFClassType &i_class = TFClass_Unknown)
-{
-	if (!(i_target > 0 && i_target <= MaxClients))
-	{
-		return TauntExecution_InvalidClient;
-	}
-	if (!IsClientInGame(i_target))
-	{
-		return TauntExecution_ClientNotInGame;
-	}
-	if (TF2_GetClientTeam(i_target) == TFTeam_Unassigned)
-	{
-		return TauntExecution_ClientIsUnassigned;
-	}
-	if (TF2_GetClientTeam(i_target) == TFTeam_Spectator)
-	{
-		return TauntExecution_ClientIsSpectator;
-	}
-	if ((i_class = TF2_GetPlayerClass(i_target)) == TFClass_Unknown)
-	{
-		return TauntExecution_InvalidClass;
-	}
-	if (!IsPlayerAlive(i_target))
-	{
-		return TauntExecution_TargetIsDead;
-	}
-	return TauntExecution_Success;
-}
-
-TauntExecution CheckAndTaunt(int i_target, int i_idx)
-{
-	TauntExecution i_check_only_result;
-	TFClassType i_class;
-	if ((i_check_only_result = CheckOnly(i_target, i_class)) != TauntExecution_Success) { return i_check_only_result; }
-	
-	i_class = TF2_GetPlayerClass(i_target);
-	int i_index;
-	if (!gh_cache.IsValidTaunt(i_idx, i_class, i_index))
-	{
-		if (i_index != -1)	//if IsValidTaunt returns false but the index is not -1, the idx is valid, but the classes don't match
-		{
-			return TauntExecution_WrongClass;
-		}
-		else
-		{
-			return TauntExecution_IvalidIDX;
-		}
-	}
-	if (!gh_enforcer.ForceTaunt(i_target, i_idx))
-	{
-		return TauntExecution_TauntFailed;
-	}
-	else
-	{	
-		return TauntExecution_Success;
-	}
-}
-
-//stocks
-stock int GetCmdArgInt(int i_argnum, int i_length = 12, int i_base = 10)
-{
-	char[] s_buffer = new char[i_length];
-	GetCmdArg(i_argnum, s_buffer, i_length);
-	return StringToInt(s_buffer, i_base);
 }
 
 #if defined _tf2itemsinfo_included //{
