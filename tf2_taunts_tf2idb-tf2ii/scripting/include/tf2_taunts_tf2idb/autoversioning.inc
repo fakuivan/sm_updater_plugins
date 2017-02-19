@@ -3,4 +3,4 @@
 #endif
 #define _autoversioning_included
 #define AUTOVERSIONING_TAG "1.5"
-#define AUTOVERSIONING_COMMIT "43" 
+#define AUTOVERSIONING_COMMIT "45" 
