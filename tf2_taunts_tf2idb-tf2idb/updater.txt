@@ -4,9 +4,9 @@
 	{
 		"Version"
 		{
-			"Latest" "1.5.1.47-tf2idb"
+			"Latest" "1.5.2.51-tf2idb"
 		}
-		"Notes" "Version 1.5.1.47-tf2idb is out!"
+		"Notes" "Version 1.5.2.51-tf2idb is out!"
 		"Notes" "Go to https://github.com/fakuivan/TF2-Taunts-TF2IDB to see the changes"
 	}
 	"Files"
