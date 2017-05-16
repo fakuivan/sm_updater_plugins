@@ -27,7 +27,7 @@
 #if defined _autoversioning_included
  #define PLUGIN_VERSION	AUTOVERSIONING_TAG ... "." ... AUTOVERSIONING_COMMIT ... "-" ... _USING_ITEMS_HELPER
 #else
- #define PLUGIN_VERSION "1.5.1" ... "." ... "*" ... "-" ... _USING_ITEMS_HELPER
+ #define PLUGIN_VERSION "1.5.2" ... "." ... "*" ... "-" ... _USING_ITEMS_HELPER
 #endif
 
 public Plugin myinfo = 
@@ -46,7 +46,7 @@ CTauntEnforcer gh_enforcer;
 
 InitializationStatus gi_initialization = InitializationStatus_Success;
 
-public void OnPluginStart()
+public void OnAllPluginsLoaded()
 {
 #if defined _tf2idb_included //{
 	CTauntCacheSystem_FromTF2IDB_Error i_error;
