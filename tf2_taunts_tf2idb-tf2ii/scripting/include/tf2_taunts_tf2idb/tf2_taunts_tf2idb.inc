@@ -120,10 +120,10 @@ stock void Notify_ForceTaunt(	int i_client,
 								int i_nof_targets, 
 								CTauntCacheSystem h_cache)
 {
-	int i_taunt_index = h_cache.FindTauntByDefIndex(i_idx);
+	CTauntInfo i_taunt = CTauntInfo(i_idx, h_cache);
 	int i_hits;
 	char[] s_taunt_name = new char[h_cache.m_iMaxNameLength];
-	h_cache.GetTauntName(i_taunt_index, s_taunt_name, h_cache.m_iMaxNameLength);
+	i_taunt.GetName(s_taunt_name, h_cache.m_iMaxNameLength, h_cache);
 	for (int i_iter = 0; i_iter < i_nof_targets; i_iter++)
 	{
 		if (b_success[i_iter])
@@ -196,21 +196,21 @@ stock TauntExecution CheckClassToo(int i_target, int i_idx, CTauntCacheSystem h_
 	TauntExecution i_check_only_result;
 	if ((i_check_only_result = CheckOnly(i_target, i_class)) != TauntExecution_Success) { return i_check_only_result; }
 	
-	int i_index;
-	if (h_taunts.IsValidTaunt(i_idx, i_class, i_index))
+	CTauntInfo i_taunt = CTauntInfo(i_idx);
+	if (i_taunt != INVALID_TAUNT)
 	{
-		return TauntExecution_Success;
-	}
-	else
-	{
-		if (i_index != -1)	//if IsValidTaunt returns false but the index is not -1, the idx is valid, but the classes don't match
+		if (i_taunt.CanBeUsedByClass(i_class, h_taunts))
 		{
-			return TauntExecution_WrongClass;
+			return TauntExecution_Success;
 		}
 		else
 		{
-			return TauntExecution_IvalidIDX;
+			return TauntExecution_WrongClass;
 		}
+	}
+	else
+	{
+		return TauntExecution_IvalidIDX;
 	}
 }
 
@@ -283,48 +283,20 @@ stock any GetDataFromInvisibleMenuItem(Handle h_menu, bool b_last_position = tru
 	return view_as<any>(StringToInt(s_data, 16));
 }
 
-stock int AddTauntsToMenu(Handle h_menu, TFClassType i_class, CTauntCacheSystem h_taunts)
+stock void AddTauntsByClassToMenu(Handle h_menu, TFClassType i_class, CTauntCacheSystem h_taunts, bool b_specify_class)
 {
-	int i_name_maxlen = h_taunts.m_iMaxNameLength;
-	char[] s_name = new char[i_name_maxlen];
+	char[] s_name = new char[h_taunts.m_iMaxNameLength];
 	char s_hex_idx[INT_HEX_LENGTH];
+	char s_class[TF_MAX_CLASS_NAME_LENGTH];
+	if (b_specify_class) { TF2_ClassEnumToString(i_class, s_class); }
 	
-	// Add all-class taunts first
-	for (int i_iter = 0; i_iter < GetArraySize(h_taunts.m_hAllClassTaunts); i_iter++)
+	ArrayList h_taunt_list = (i_class == TFClass_Unknown) ? h_taunts.m_hAllClassTaunts : h_taunts.GetListForClass(i_class);
+	for (int i_iter = 0; i_iter < GetArraySize(h_taunt_list); i_iter++)
 	{
-		int i_index = GetArrayCell(h_taunts.m_hAllClassTaunts, i_iter);
-		h_taunts.GetTauntName(i_index, s_name, i_name_maxlen);
-		Format(s_hex_idx, sizeof(s_hex_idx), "%x", h_taunts.GetTauntItemID(i_index));
-		AddMenuItem(h_menu, s_hex_idx, s_name);
-	}
-	
-	if (i_class == TFClass_Unknown)
-	{
-		char s_class[TF_MAX_CLASS_NAME_LENGTH];
-	
-		for (TFClassType i_current_class = view_as<TFClassType>(view_as<int>(TFClassType) - 1); view_as<int>(i_current_class) > 0; i_current_class--)
-		{
-			ArrayList h_taunts_for_class = h_taunts.GetListForClass(i_current_class);
-			TF2_ClassEnumToString(i_current_class, s_class);
-			for (int i_iter = 0; i_iter < GetArraySize(h_taunts_for_class); i_iter++)
-			{
-				int i_taunt_internal_index = GetArrayCell(h_taunts_for_class, i_iter);
-				Format(s_hex_idx, sizeof(s_hex_idx), "%x", h_taunts.GetTauntItemID(i_taunt_internal_index));
-				h_taunts.GetTauntName(i_taunt_internal_index, s_name, h_taunts.m_iMaxNameLength);
-				AddFormattedMenuItem(h_menu, s_hex_idx, ITEMDRAW_DEFAULT, "%s (%s)", s_name, s_class);
-			}
-		}
-	}
-	else
-	{
-		ArrayList h_list_for_class = h_taunts.GetListForClass(i_class);
-		for (int i_iter = 0; i_iter < GetArraySize(h_list_for_class); i_iter++)
-		{
-			int i_index = GetArrayCell(h_list_for_class, i_iter);
-			h_taunts.GetTauntName(i_index, s_name, i_name_maxlen);
-			Format(s_hex_idx, sizeof(s_hex_idx), "%x", h_taunts.GetTauntItemID(i_index));
-			AddMenuItem(h_menu, s_hex_idx, s_name);
-		}
+		CTauntInfo i_taunt = GetArrayCell(h_taunt_list, i_iter);
+		i_taunt.GetName(s_name, h_taunts.m_iMaxNameLength, h_taunts);
+		Format(s_hex_idx, sizeof(s_hex_idx), "%x", i_taunt.GetIDX(h_taunts));
+		AddFormattedMenuItem(h_menu, s_hex_idx, ITEMDRAW_DEFAULT, b_specify_class ? "%s (%s)" : "%s" , s_name, s_class);
 	}
 }
 
