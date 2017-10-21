@@ -3,7 +3,9 @@
  #include "tf2itemsinfo.inc"
 #else
  #define _USING_ITEMS_HELPER	"tf2idb"
+ #undef REQUIRE_PLUGIN
  #include "tf2idb.inc"
+ #define REQUIRE_PLUGIN
 #endif
 #include "tf2items.inc"
 #undef REQUIRE_PLUGIN
@@ -30,7 +32,7 @@
 #if defined _autoversioning_included
  #define PLUGIN_VERSION	AUTOVERSIONING_TAG ... "." ... AUTOVERSIONING_COMMIT ... "-" ... _USING_ITEMS_HELPER
 #else
- #define PLUGIN_VERSION "1.6.1" ... "." ... "*" ... "-" ... _USING_ITEMS_HELPER
+ #define PLUGIN_VERSION "1.6.3" ... "." ... "*" ... "-" ... _USING_ITEMS_HELPER
 #endif
 
 public Plugin myinfo = 
@@ -53,12 +55,16 @@ public void OnAllPluginsLoaded()
 {
 #if defined _tf2idb_included //{
 	CTauntCacheSystem_FromTF2IDB_Error i_error;
-	gh_cache = CTauntCacheSystem.GetSetGlobalInstance(CTauntCacheSystem.FromTF2IDB(), true);
+	gh_cache = CTauntCacheSystem.GetSetGlobalInstance(CTauntCacheSystem.FromTF2IDB(i_error), true);
 	if (i_error != CTauntCacheSystem_FromTF2IDB_Error_None)
 	{
 		gi_initialization = view_as<InitializationStatus>(i_error) + InitializationStatus_FromTF2IDB_Error;
 	}
-	if (gi_initialization >= InitializationStatus_FromTF2IDB_Error)
+	if (i_error == CTauntCacheSystem_FromTF2IDB_Error_TF2IDBNotLoaded)
+	{
+		LogError("Failed to initialize taunt cache: TF2IDB Not loaded.");
+	}
+	else if (gi_initialization >= InitializationStatus_FromTF2IDB_Error)
 	{
 		LogError("Failed to initialize taunt cache, error code %d", gi_initialization - InitializationStatus_FromTF2IDB_Error);
 	}
